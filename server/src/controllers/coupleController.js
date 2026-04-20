@@ -60,6 +60,7 @@ exports.requestCouple = async (req, res) => {
             data: {
                 user1Id,
                 user2Id,
+                requestedById: userId,
                 status: "PENDING",
             },
         });
@@ -100,8 +101,12 @@ exports.acceptCouple = async (req, res) => {
             });
         }
 
-        // Only user2 (the person to whom the request was sent) will accept
-        if (relationship.user2Id !== userId) {
+        const receiverId = 
+            relationship.requestedById === relationship.user1Id
+                ? relationship.user2Id
+                : relationship.user1Id;
+
+        if (receiverId !== userId) {
             return res.status(403).json({
                 message: "Not authorized to accept this request",
             });

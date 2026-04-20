@@ -94,7 +94,7 @@ exports.login = async (req, res) => {
         );
 
         return res.status(200).json({
-            access_token: token,
+            accessToken: token,
         });
     } catch (err) {
         return res.status(500).json({

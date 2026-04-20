@@ -24,6 +24,8 @@ model User {
   // relations
   sentRelationships     Relationship[] @relation("User1")
   receivedRelationships Relationship[] @relation("User2")
+
+  vaultItems SecretVault[]
 }
 
 model Relationship {
@@ -31,6 +33,8 @@ model Relationship {
 
   user1Id   Int
   user2Id   Int
+
+  requestedById Int
 
   status    RelationshipStatus @default(PENDING)
 
@@ -42,7 +46,6 @@ model Relationship {
   user2 User @relation("User2", fields: [user2Id], references: [id])
 
   @@unique([user1Id, user2Id]) // avoid duplicate
-
   @@index([user1Id])
   @@index([user2Id])
 }
@@ -51,4 +54,23 @@ enum RelationshipStatus {
   PENDING
   CONNECTED
   REJECTED
+}
+
+model SecretVault {
+  id        Int      @id @default(autoincrement())
+
+  ownerId   Int
+  itemType  String
+  content   String
+
+  isVisibleToPartner Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relations
+  owner User @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([itemType])
 }
