@@ -21,11 +21,13 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  // relations
+  // Relations
   sentRelationships     Relationship[] @relation("User1")
   receivedRelationships Relationship[] @relation("User2")
 
   vaultItems SecretVault[]
+
+  recommendationLogs RecommendationLog[]
 }
 
 model Relationship {
@@ -41,7 +43,7 @@ model Relationship {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // relations
+  // Relations
   user1 User @relation("User1", fields: [user1Id], references: [id])
   user2 User @relation("User2", fields: [user2Id], references: [id])
 
@@ -68,9 +70,65 @@ model SecretVault {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // relations
+  // Relations
   owner User @relation(fields: [ownerId], references: [id])
 
   @@index([ownerId])
   @@index([itemType])
+}
+
+model Vendor {
+  id         Int     @id @default(autoincrement())
+  name       String
+  category   String
+  priceRange String
+  location   String
+
+  products Product[]
+}
+
+model Product {
+  id        Int     @id @default(autoincrement())
+
+  vendorId  Int
+  name      String
+  category  String
+  price     Float
+
+  tags      String[]
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  recommendationLogs RecommendationLog[]
+
+  @@index([vendorId])
+  @@index([category])
+}
+
+model RecommendationLog {
+  id        Int      @id @default(autoincrement())
+
+  userId    Int
+  productId Int
+
+  score     Float
+  source    RecommendationSource
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([userId])
+  @@index([productId])
+}
+
+enum RecommendationSource {
+  VAULT
+  AI
+  TRENDING
 }

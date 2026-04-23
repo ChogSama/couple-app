@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const coupleRoutes = require("./routes/couple");
 const vaultRoutes = require("./routes/vault");
+const recommendRoutes = require("./routes/recommend");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
 app.use("/couple", coupleRoutes);
 app.use("/vault", vaultRoutes);
+app.use("/recommend", recommendRoutes);
 
 app.listen(3000, () => {
     console.log("Server is running on http://localhost:3000");
