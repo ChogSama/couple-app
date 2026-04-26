@@ -27,6 +27,8 @@ model User {
 
   vaultItems SecretVault[]
 
+  userProfileAI UserProfileAI?
+
   recommendationLogs RecommendationLog[]
 }
 
@@ -77,6 +79,17 @@ model SecretVault {
   @@index([itemType])
 }
 
+model UserProfileAI {
+  userId Int @id
+
+  tags             String[]   // Normalized interests
+  preferenceScore  Json       // { "food": 0.9, "travel": 0.7 }
+
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
 model Vendor {
   id         Int     @id @default(autoincrement())
   name       String
@@ -106,6 +119,7 @@ model Product {
 
   @@index([vendorId])
   @@index([category])
+  @@index([tags], type: Gin)
 }
 
 model RecommendationLog {
@@ -117,6 +131,10 @@ model RecommendationLog {
   score     Float
   source    RecommendationSource
 
+  context   Json?    // { "reason": "matched_food", "event": "valentine" }
+  isClicked Boolean  @default(false)
+  isPurchased Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   // Relations
@@ -125,6 +143,7 @@ model RecommendationLog {
 
   @@index([userId])
   @@index([productId])
+  @@index([source])
 }
 
 enum RecommendationSource {

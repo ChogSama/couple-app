@@ -19,6 +19,50 @@ async function getParterId(userId) {
         : relationship.user1Id;
 }
 
+// Extract tags from vault items
+function extractTagsFromVault(vaultItems) {
+    const stopWords = ["i", "and", "or", "the", "a", "love", "like", "likes"];
+
+    const tags = vaultItems.flatMap((v) => 
+        v.content
+            .toLowerCase()
+            .split(/[\s,]+/)
+            .filter(word => word && !stopWords.includes(word))
+    );
+
+    return [...new Set(tags)];
+}
+
+function normalize(tag) {
+    return tag.toLowerCase().trim();
+}
+
+// Calculate recommendation score based on tags and AI profile
+function calculateScore(product, userTags, userProfileAI) {
+    let score = 0;
+
+    const normalizedUserTags = userTags.map(normalize);
+    const normalizedProductTags = product.tags.map(normalize);
+
+    // VAULT match
+    const matchCount = normalizedProductTags.filter((tag) =>
+        normalizedUserTags.includes(tag)
+    ).length;
+
+    score = matchCount * 0.4;
+
+    // AI profile match
+    if (userProfileAI?.preferenceScore) {
+        for (const tag of normalizedProductTags) {
+            if (userProfileAI.preferenceScore[tag]) {
+                score += userProfileAI.preferenceScore[tag] * 0.6;
+            }
+        }
+    }
+
+    return Number.isFinite(score) ? Math.min(score, 1) : 0;
+}
+
 // Get gift recommendations
 exports.getGiftRecommendations = async (req, res) => {
     try {
@@ -37,35 +81,83 @@ exports.getGiftRecommendations = async (req, res) => {
             where: {
                 ownerId: partnerId,
                 isVisibleToPartner: true,
-            }
-        });
-
-        // Extract tags from vault items
-        const tags = vaultItems.map(v => v.itemType);
-
-        // Find products matching the tags
-        const products = await prisma.product.findMany({
-            where: {
-                tags: {
-                    hasSome: tags,
-                }
             },
-            take: 10,
         });
 
-        // Format results
-        const results = products.map(p => ({
-            productId: p.id,
-            name: p.name,
-            score: 0.8, // Static score for demo purposes
-        }));
+        const vaultTags = extractTagsFromVault(vaultItems);
 
-        // Log recommendations
-        const logs = products.map(p => ({
+        // Get AI profile
+        const userProfileAI = await prisma.userProfileAI.findUnique({
+            where: { userId },
+        });
+
+        const aiTags = userProfileAI?.tags || [];
+
+        // Merge tags
+        const combinedTags = [...new Set([...vaultTags, ...aiTags])];
+
+        // Fetch products matching tags
+        let products = [];
+
+        if (combinedTags.length > 0) {
+            products = await prisma.product.findMany({
+                where: {
+                    tags: {
+                        hasSome: combinedTags,
+                    },
+                },
+                take: 20,
+            });
+        }
+
+        // Fallback to popular products if no matches
+        if (products.length === 0) {
+            products = await prisma.product.findMany({
+                orderBy: {
+                    createdAt: "desc",
+                },
+                take: 10,
+            });
+        }
+
+        // Scoring products
+        const scored = products.map((p) => {
+            const matchedTags = p.tags.filter((tag) =>
+                vaultTags.includes(tag)
+            );
+
+            const score = calculateScore(p, vaultTags, userProfileAI);
+
+            return {
+                productId: p.id,
+                name: p.name,
+                score,
+                reason: matchedTags.length
+                    ? `Matched: ${matchedTags.join(", ")}`
+                    : "Based on trends",
+            };
+        });
+
+        // Sort by score
+        scored.sort((a, b) => b.score - a.score);
+
+        const topResults = scored.slice(0, 10);
+
+        // Logging for debugging
+        const logs = topResults.map((r) => ({
             userId,
-            productId: p.id,
-            score: 0.8,
-            source: "VAULT",
+            productId: r.productId,
+            score: r.score,
+            source:
+                vaultTags.length > 0
+                    ? "VAULT"
+                    : aiTags.length > 0
+                    ? "AI"
+                    : "TRENDING",
+            context: {
+                vaultTags,
+                aiTags,
+            },
         }));
 
         if (logs.length > 0) {
@@ -74,7 +166,7 @@ exports.getGiftRecommendations = async (req, res) => {
             });
         }
 
-        return res.json(results);
+        return res.status(200).json(topResults);
     } catch (err) {
         return res.status(500).json({
             message: "Internal server error",
@@ -86,13 +178,42 @@ exports.getGiftRecommendations = async (req, res) => {
 // Get date ideas
 exports.getDateIdeas = async (req, res) => {
     try {
-        const ideas = [
-            { id: 1, title: "Romantic Dinner", score: 0.9 },
-            { id: 2, title: "Coffee Date", score: 0.8 },
-            { id: 3, title: "Movie Night", score: 0.85 },
+        const userId = req.user.userId;
+
+        // Personalize date ideas based on AI profile
+        const userProfileAI = await prisma.userProfileAI.findUnique({
+            where: { userId },
+        });
+
+        let ideas = [
+            { id: 1, title: "Romantic Dinner", tags: ["food", "romantic"] },
+            { id: 2, title: "Coffee Date", tags: ["coffee", "casual"] },
+            { id: 3, title: "Movie Night", tags: ["movie", "indoor"] },
+            { id: 4, title: "Picnic", tags: ["outdoor", "romantic"] },
         ];
 
-        return res.json(ideas);
+        // Simple scoring based on AI profile tags
+        const scored = ideas.map((idea) => {
+            let score = 0;
+
+            if (userProfileAI?.preferenceScore) {
+                for (const tag of idea.tags) {
+                    if (userProfileAI.preferenceScore[tag]) {
+                        score += userProfileAI.preferenceScore[tag];
+                    }
+                }
+            }
+
+            return {
+                id: idea.id,
+                title: idea.title,
+                score: Math.min(score || 0.7, 1), // Fallback to 0.7 if no AI data
+            };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+
+        return res.status(200).json(scored);
     } catch (err) {
         return res.status(500).json({
             message: "Internal server error",
