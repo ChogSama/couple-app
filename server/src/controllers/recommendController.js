@@ -1,7 +1,7 @@
 const prisma = require("../lib/prisma");
 
 // Get partner's id
-async function getParterId(userId) {
+async function getPartnerId(userId) {
     const relationship = await prisma.relationship.findFirst({
         where: {
             status: "CONNECTED",
@@ -37,30 +37,64 @@ function normalize(tag) {
     return tag.toLowerCase().trim();
 }
 
-// Calculate recommendation score based on tags and AI profile
-function calculateScore(product, userTags, userProfileAI) {
-    let score = 0;
+// Safe number conversion
+function safe(n) {
+    return Number.isFinite(n) ? n : 0;
+}
 
-    const normalizedUserTags = userTags.map(normalize);
+// Get vault score based on tag matches
+function getVaultScore(product, vaultTags) {
+    if (!vaultTags.length) return 0;
+
+    const normalizedUserTags = vaultTags.map(normalize);
     const normalizedProductTags = product.tags.map(normalize);
 
-    // VAULT match
     const matchCount = normalizedProductTags.filter((tag) =>
         normalizedUserTags.includes(tag)
     ).length;
 
-    score = matchCount * 0.4;
+    return matchCount / (normalizedProductTags.length || 1);
+}
 
-    // AI profile match
-    if (userProfileAI?.preferenceScore) {
-        for (const tag of normalizedProductTags) {
-            if (userProfileAI.preferenceScore[tag]) {
-                score += userProfileAI.preferenceScore[tag] * 0.6;
-            }
-        }
+// Get AI score based on user profile preferences
+function getAIScore(product, userProfileAI) {
+    if (!userProfileAI?.preferenceScore) return 0;
+
+    let score = 0;
+
+    for (const tag of product.tags.map(normalize)) {
+        score += userProfileAI.preferenceScore[tag] || 0;
     }
 
-    return Number.isFinite(score) ? Math.min(score, 1) : 0;
+    return Math.min(score, 1);
+}
+
+// Get behavior score based on past interactions
+async function getBehaviorScore(userId, productId) {
+    const logs = await prisma.recommendationLog.findMany({
+        where: { userId, productId },
+    });
+
+    let score = 0;
+
+    logs.forEach((l) => {
+        if (l.isClicked) score += 0.2;
+        if (l.isPurchased) score += 0.5;
+    });
+
+    return Math.min(score, 1);
+}
+
+// Get trending score based on overall popularity
+async function getTrendingScore(productId) {
+    const count = await prisma.recommendationLog.count({
+        where: {
+            productId,
+            isClicked: true,
+        }
+    });
+
+    return Math.min(count / 50, 1);
 }
 
 // Get gift recommendations
@@ -69,7 +103,7 @@ exports.getGiftRecommendations = async (req, res) => {
         const userId = req.user.userId;
 
         // Get partner id
-        const partnerId = await getParterId(userId);
+        const partnerId = await getPartnerId(userId);
         if (!partnerId) {
             return res.status(400).json({
                 message: "No partner connected",
@@ -120,23 +154,38 @@ exports.getGiftRecommendations = async (req, res) => {
             });
         }
 
-        // Scoring products
-        const scored = products.map((p) => {
+        const scored = [];
+        
+        for (const p of products) {
+            const vaultScore = getVaultScore(p, vaultTags);
+            const aiScore = getAIScore(p, userProfileAI);
+            const behaviorScore = await getBehaviorScore(userId, p.id);
+            const trendingScore = await getTrendingScore(p.id);
+
+            const finalScore = safe(
+                0.4 * vaultScore +
+                0.3 * aiScore +
+                0.2 * behaviorScore +
+                0.1 * trendingScore
+            );
+
             const matchedTags = p.tags.filter((tag) =>
                 vaultTags.includes(tag)
             );
 
-            const score = calculateScore(p, vaultTags, userProfileAI);
-
-            return {
+            scored.push({
                 productId: p.id,
                 name: p.name,
-                score,
-                reason: matchedTags.length
-                    ? `Matched: ${matchedTags.join(", ")}`
-                    : "Based on trends",
-            };
-        });
+                score: finalScore,
+                reason: `
+                vault: ${vaultScore.toFixed(2)}
+                ai: ${aiScore.toFixed(2)}
+                behavior: ${behaviorScore.toFixed(2)}
+                trend: ${trendingScore.toFixed(2)}
+                ${matchedTags.length ? `match: ${matchedTags.join(",")}` : ""}
+                    `.trim(),
+            });
+        }
 
         // Sort by score
         scored.sort((a, b) => b.score - a.score);
