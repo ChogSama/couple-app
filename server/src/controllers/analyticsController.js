@@ -1,5 +1,54 @@
 const prisma = require("../lib/prisma");
 
+function normalize(tag) {
+    return tag.toLowerCase().trim();
+}
+
+async function updateAIProfileFromBehavior(userId, product, weight = 0.1) {
+    if (!product?.tags?.length) return;
+
+    const tags = product.tags.map(normalize);
+
+    let profile = await prisma.userProfileAI.findUnique({
+        where: { userId },
+    });
+
+    if (!profile) {
+        await prisma.userProfileAI.create({
+            data: {
+                userId,
+                tags,
+                preferenceScore: Object.fromEntries(
+                    tags.map((tag) => [tag, weight])
+                ),
+            },
+        });
+        return;
+    }
+
+    const existingTags = profile.tags || [];
+    const existingScores = profile.preferenceScore || {};
+
+    for (const tag of tags) {
+        existingScores[tag] = Math.min(
+            (existingScores[tag] || 0) + weight,
+            1
+        );
+
+        if (!existingTags.includes(tag)) {
+            existingTags.push(tag);
+        }
+    }
+
+    await prisma.userProfileAI.update({
+        where: { userId },
+        data: {
+            tags: existingTags,
+            preferenceScore: existingScores,
+        },
+    });
+}
+
 // Track product click
 exports.trackClick = async (req, res) => {
     try {
@@ -29,13 +78,18 @@ exports.trackClick = async (req, res) => {
             });
         }
 
-        // Update the log to mark it as clicked
-        await prisma.recommendationLog.update({
+        const updatedLog = await prisma.recommendationLog.update({
             where: { id: log.id },
             data: {
                 isClicked: true,
             },
+            include: {
+                product: true,
+            },
         });
+
+        // Auto update AI profile based on click behavior
+        await updateAIProfileFromBehavior(userId, updatedLog.product, 0.1);
 
         return res.status(200).json({
             message: "Click tracked",
@@ -77,14 +131,19 @@ exports.trackPurchase = async (req, res) => {
             });
         }
 
-        // Update the log to mark it as purchased
-        await prisma.recommendationLog.update({
+        const updatedLog = await prisma.recommendationLog.update({
             where: { id: log.id },
             data: {
                 isClicked: true,
                 isPurchased: true,
             },
+            include: {
+                product: true,
+            },
         });
+
+        // Auto update AI profile based on purchase behavior
+        await updateAIProfileFromBehavior(userId, updatedLog.product, 0.3);
 
         return res.status(200).json({
             message: "Purchase tracked",
