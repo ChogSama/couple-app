@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { updateFromBehavior } = require("../service/aiProfileService");
+const { updateFromBehavior } = require("../services/aiProfileService");
 
 // Track product click
 exports.trackClick = async (req, res) => {

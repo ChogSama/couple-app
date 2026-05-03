@@ -1,6 +1,68 @@
 const prisma = require("../lib/prisma");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
 
+let trendingCache = null;
+let lastTrendingFetch = 0;
+
+const STOP_WORDS = ["i", "and", "or", "the", "a", "love", "like", "likes"];
+
+function normalize(tag) {
+    return tag.toLowerCase().trim();
+}
+
+function buildExplanation({
+    vaultScore,
+    aiScore,
+    behaviorScore,
+    trendingScore,
+    matchedTags,
+}) {
+    const reasons = [];
+
+    if (vaultScore > 0) {
+        reasons.push({
+            type: "VAULT",
+            message: matchedTags.length
+                ? `You liked ${matchedTags.join(", ")}`
+                : "Matches your preferences",
+            score: Number(vaultScore.toFixed(2)),
+        });
+    }
+
+    if (aiScore > 0) {
+        reasons.push({
+            type: "AI",
+            message: "AI preference match",
+            score: Number(aiScore.toFixed(2)),
+        });
+    } 
+
+    if (behaviorScore > 0) {
+        reasons.push({
+            type: "BEHAVIOR",
+            message: "Based on past clicks/purchases",
+            score: Number(behaviorScore.toFixed(2)),
+        });
+    }
+
+    if (trendingScore > 0) {
+        reasons.push({
+            type: "TRENDING",
+            message: "Popular among users",
+            score: Number(trendingScore.toFixed(2)),
+        });
+    }
+
+    return reasons;
+}
+
+function getDominantSource(explanation) {
+    if (!explanation.length) return "TRENDING";
+
+    const sorted = [...explanation].sort((a, b) => b.score - a.score);
+    return sorted[0].type;
+}
+
 // NOTE: Optimize: Batch queries instead of await in loop
 // Get behavior score based on past interactions
 async function getBehaviorMap(userId) {
@@ -37,6 +99,18 @@ async function getTrendingMap() {
     return map;
 }
 
+async function getTrendingMapCached() {
+    const now = Date.now();
+
+    if (trendingCache && now - lastTrendingFetch < 60000) {
+        return trendingCache;
+    }
+
+    trendingCache = await getTrendingMap();
+    lastTrendingFetch = now;
+
+    return trendingCache;
+}
 // Get gift recommendations
 async function getGiftRecommendations(userId) {
     // Partner
@@ -64,7 +138,11 @@ async function getGiftRecommendations(userId) {
     const vaultTags = [
         ...new Set(
             vaultItems.flatMap((v) =>
-                v.content.toLowerCase().split(/[\s,]+/)
+                v.content
+                    .toLowerCase()
+                    .split(/[\s,]+/)
+                    .map(normalize)
+                    .filter((t) => t && !STOP_WORDS.includes(t))
             )
         ),
     ];
@@ -105,12 +183,21 @@ async function getGiftRecommendations(userId) {
 
     // Batch scores
     const behaviorMap = await getBehaviorMap(userId);
-    const trendingMap = await getTrendingMap();
+    const trendingMap = await getTrendingMapCached();
 
     const scored = products.map((p) => {
         const vault = getVaultScore(p, vaultTags);
         const ai = getAIScore(p, profile);
-        const behavior = behaviorMap[p.id]?.click + behaviorMap[p.id]?.purchase || 0;
+
+        const behaviorData = behaviorMap[p.id] || { click: 0, purchase: 0 };
+
+        const behavior =
+            Math.min(
+                (behaviorData.click || 0) +
+                (behaviorData.purchase || 0),
+                1
+            );
+
         const trend = trendingMap[p.id] || 0;   
 
         const score = safe(
@@ -120,10 +207,30 @@ async function getGiftRecommendations(userId) {
                 0.1 * trend
             );
 
+        const matchedTags = p.tags.filter((tag) =>
+            vaultTags.includes(tag)
+        );
+
+        const explanation = buildExplanation({
+            vaultScore: vault,
+            aiScore: ai,
+            behaviorScore: behavior,
+            trendingScore: trend,
+            matchedTags
+        });
+
+        const primaryReason =
+            explanation.sort((a, b) => b.score - a.score)[0];
+
+        const dominantSource = getDominantSource(explanation);
+
         return {
             productId: p.id,
             name: p.name,
             score,
+            reason: explanation,
+            primaryReason: primaryReason?.message || "Recommended for you",
+            source: dominantSource,
         };
     });
 

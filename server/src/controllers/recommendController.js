@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { getGiftRecommendations } = require("../service/recommendService");
+const { getGiftRecommendations } = require("../services/recommendService");
 
 // Get gift recommendations
 exports.getGiftRecommendations = async (req, res) => {
@@ -12,12 +12,12 @@ exports.getGiftRecommendations = async (req, res) => {
                 userId: req.user.userId,
                 productId: r.productId,
                 score: r.score,
-                source: context.vaultTags.length
-                    ? "VAULT"
-                    : context.aiTags.length
-                    ? "AI"
-                    : "TRENDING",
-                context,
+                source: r.source,
+                context: {
+                    ...context,
+                    explanation: r.reason,
+                    primaryReason: r.primaryReason,
+                },
             })),
         });
 

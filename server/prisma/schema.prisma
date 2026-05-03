@@ -149,5 +149,6 @@ model RecommendationLog {
 enum RecommendationSource {
   VAULT
   AI
+  BEHAVIOR
   TRENDING
 }
