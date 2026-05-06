@@ -151,4 +151,5 @@ enum RecommendationSource {
   AI
   BEHAVIOR
   TRENDING
+  SURPRISE
 }

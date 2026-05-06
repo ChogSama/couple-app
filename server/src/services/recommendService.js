@@ -53,6 +53,14 @@ function buildExplanation({
         });
     }
 
+    if (vaultScore === 0 && aiScore === 0) {
+        reasons.push({
+            type: "SURPRISE",
+            message: "Something new for you",
+            score: 0.3,
+        });
+    }
+
     return reasons;
 }
 
@@ -111,8 +119,23 @@ async function getTrendingMapCached() {
 
     return trendingCache;
 }
+
+async function getSurpriseProducts(existingIds, limit = 3) {
+    return prisma.product.findMany({
+        where: {
+            id: { notIn: existingIds },
+        },
+        orderBy: {
+            createdAt: "desc",
+        },
+        take: limit,
+    });
+}
+
 // Get gift recommendations
-async function getGiftRecommendations(userId) {
+async function getGiftRecommendations(userId, options = {}) {
+    const { surprise = false, surpriseRatio = 0.2 } = options;
+
     // Partner
     const rel = await prisma.relationship.findFirst({
         where: {
@@ -181,11 +204,27 @@ async function getGiftRecommendations(userId) {
         });
     }
 
+    let finalProducts = [...products];
+    
+    if (surprise) {
+        const surpriseCount = Math.max(
+            1,
+            Math.floor(products.length * surpriseRatio)
+        );
+
+        const surpriseItems = await getSurpriseProducts(
+            products.map((p) => p.id),
+            surpriseCount
+        );
+
+        finalProducts = [...products, ...surpriseItems];
+    }
+
     // Batch scores
     const behaviorMap = await getBehaviorMap(userId);
     const trendingMap = await getTrendingMapCached();
 
-    const scored = products.map((p) => {
+    const scored = finalProducts.map((p) => {
         const vault = getVaultScore(p, vaultTags);
         const ai = getAIScore(p, profile);
 

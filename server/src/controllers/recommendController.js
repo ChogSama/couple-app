@@ -4,8 +4,12 @@ const { getGiftRecommendations } = require("../services/recommendService");
 // Get gift recommendations
 exports.getGiftRecommendations = async (req, res) => {
     try {
+        const surprise = req.query.surprise === "true";
+
         const { results, context } =
-            await getGiftRecommendations(req.user.userId);
+            await getGiftRecommendations(req.user.userId, {
+                surprise,
+            });
         
         await prisma.recommendationLog.createMany({
             data: results.map((r) => ({
