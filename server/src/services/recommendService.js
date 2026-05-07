@@ -1,4 +1,6 @@
+const { cache } = require("react");
 const prisma = require("../lib/prisma");
+const redis = require("../lib/redis");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
 
 let trendingCache = null;
@@ -108,16 +110,34 @@ async function getTrendingMap() {
 }
 
 async function getTrendingMapCached() {
+    const cacheKey = "recommend:trending-map";
+
+    // Redis cache
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+        return JSON.parse(cached);
+    }
+
+    // Memory fallback
     const now = Date.now();
 
     if (trendingCache && now - lastTrendingFetch < 60000) {
         return trendingCache;
     }
 
-    trendingCache = await getTrendingMap();
+    // DB fetch
+    const map = await getTrendingMap();
+
+    trendingCache = map;
     lastTrendingFetch = now;
 
-    return trendingCache;
+    // Save redis cache for 60s
+    await redis.set(cacheKey, JSON.stringify(map), {
+        EX: 60,
+    });
+
+    return map;
 }
 
 async function getSurpriseProducts(existingIds, limit = 3) {
@@ -132,9 +152,40 @@ async function getSurpriseProducts(existingIds, limit = 3) {
     });
 }
 
+async function getCachedRecommendations(userId, options) {
+    const cacheKey =
+        `recommend:user:${userId}:` +
+        JSON.stringify(options || {});
+
+    const cached = await redis.get(cacheKey);
+
+    if (!cached) return null;
+
+    return JSON.parse(cached);
+}
+
+async function setCachedRecommendations(userId, options, data) {
+    const cacheKey =
+        `recommend:user:${userId}:` +
+        JSON.stringify(options || {});
+
+    await redis.set(cacheKey, JSON.stringify(data), {
+        EX: 120,
+    });
+}
+
 // Get gift recommendations
 async function getGiftRecommendations(userId, options = {}) {
     const { surprise = false, surpriseRatio = 0.2 } = options;
+
+    const cached = await getCachedRecommendations(
+        userId,
+        options
+    );
+
+    if (cached) {
+        return cached;
+    }
 
     // Partner
     const rel = await prisma.relationship.findFirst({
@@ -276,10 +327,18 @@ async function getGiftRecommendations(userId, options = {}) {
     // Sort by score
     scored.sort((a, b) => b.score - a.score);
 
-    return {
+    const response = {
         results: scored.slice(0, 10),
         context: { vaultTags, aiTags },
     };
+
+    await setCachedRecommendations(
+        userId,
+        options,
+        response
+    );
+
+    return response;
 }
 
 module.exports = { getGiftRecommendations };

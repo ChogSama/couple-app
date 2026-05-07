@@ -1,5 +1,16 @@
 const prisma = require("../lib/prisma");
+const redis = require("../lib/redis");
 const { updateFromBehavior } = require("../services/aiProfileService");
+
+async function clearRecommendationCache(userId) {
+    const keys = await redis.keys(
+        `recommend:user:${userId}:*`
+    );
+
+    if (keys.length) {
+        await redis.del(keys);
+    }
+}
 
 // Track product click
 exports.trackClick = async (req, res) => {
@@ -42,6 +53,8 @@ exports.trackClick = async (req, res) => {
 
         // Auto update AI profile based on click behavior
         await updateFromBehavior(userId, updatedLog.product, 0.1);
+        
+        await clearRecommendationCache(userId);
 
         return res.status(200).json({
             message: "Click tracked",
@@ -96,6 +109,8 @@ exports.trackPurchase = async (req, res) => {
 
         // Auto update AI profile based on purchase behavior
         await updateFromBehavior(userId, updatedLog.product, 0.3);
+
+        await clearRecommendationCache(userId);
 
         return res.status(200).json({
             message: "Purchase tracked",
