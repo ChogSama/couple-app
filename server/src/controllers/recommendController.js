@@ -21,6 +21,7 @@ exports.getGiftRecommendations = async (req, res) => {
                     ...context,
                     explanation: r.reason,
                     primaryReason: r.primaryReason,
+                    explainability: r.explainability,
                 },
             })),
         });
@@ -73,6 +74,39 @@ exports.getDateIdeas = async (req, res) => {
         scored.sort((a, b) => b.score - a.score);
 
         return res.status(200).json(scored);
+    } catch (err) {
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message,
+        });
+    }
+};
+
+exports.getRecommendationExplanation = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { productId } = req.params;
+
+        const log = await prisma.recommendationLog.findFirst({
+            where: {
+                userId,
+                productId: Number(productId),
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+
+        if (!log) {
+            return res.status(404).json({
+                message: "Explanation not found",
+            });
+        }
+
+        return res.status(200).json({
+            explanation:
+                log.context?.explainability || null,
+        });
     } catch (err) {
         return res.status(500).json({
             message: "Internal server error",

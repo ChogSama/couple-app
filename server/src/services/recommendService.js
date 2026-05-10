@@ -1,6 +1,6 @@
-const { cache } = require("react");
 const prisma = require("../lib/prisma");
 const redis = require("../lib/redis");
+const { buildExplainabilityPayload } = require("../utils/explainability");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
 
 let trendingCache = null;
@@ -314,6 +314,13 @@ async function getGiftRecommendations(userId, options = {}) {
 
         const dominantSource = getDominantSource(explanation);
 
+        const explainability = buildExplainabilityPayload({
+            product: p,
+            score,
+            explanation,
+            source: dominantSource,
+        });
+
         return {
             productId: p.id,
             name: p.name,
@@ -321,6 +328,7 @@ async function getGiftRecommendations(userId, options = {}) {
             reason: explanation,
             primaryReason: primaryReason?.message || "Recommended for you",
             source: dominantSource,
+            explainability,
         };
     });
 
