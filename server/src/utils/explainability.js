@@ -25,6 +25,9 @@ function buildHumanExplanation(reasons = []) {
                 case "SURPRISE":
                     return "A surprise recommendation";
 
+                case "VENDOR":
+                    return "From a trusted vendor";
+
                 default:
                     return r.message;
             }

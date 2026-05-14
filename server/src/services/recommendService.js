@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const redis = require("../lib/redis");
 const { buildExplainabilityPayload } = require("../utils/explainability");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
+const { calculateVendorScore } = require("../utils/vendorScoring");
 
 let trendingCache = null;
 let lastTrendingFetch = 0;
@@ -18,6 +19,7 @@ function buildExplanation({
     behaviorScore,
     trendingScore,
     matchedTags,
+    vendorScore,
 }) {
     const reasons = [];
 
@@ -60,6 +62,14 @@ function buildExplanation({
             type: "SURPRISE",
             message: "Something new for you",
             score: 0.3,
+        });
+    }
+
+    if (vendorScore > 0.7) {
+        reasons.push({
+            type: "VENDOR",
+            message: "Trusted high-quality vendor",
+            score: Number(vendorScore.toFixed(2)),
         });
     }
 
@@ -241,6 +251,9 @@ async function getGiftRecommendations(userId, options = {}) {
                     hasSome: combined,
                 },
             },
+            include: {
+                vendor: true,
+            },
             take: 20,
         });
     }
@@ -248,6 +261,9 @@ async function getGiftRecommendations(userId, options = {}) {
     // Fallback to popular products if no matches
     if (!products.length) {
         products = await prisma.product.findMany({
+            include: {
+                vendor: true,
+            },
             orderBy: {
                 createdAt: "desc",
             },
@@ -288,13 +304,17 @@ async function getGiftRecommendations(userId, options = {}) {
                 1
             );
 
-        const trend = trendingMap[p.id] || 0;   
+        const trend = trendingMap[p.id] || 0;
+        
+        const vendorScore =
+            calculateVendorScore(p.vendor);
 
         const score = safe(
-                0.4 * vault +
-                0.3 * ai +
-                0.2 * behavior +
-                0.1 * trend
+                0.35 * vault +
+                0.25 * ai +
+                0.15 * behavior +
+                0.1 * trend +
+                0.15 * vendorScore
             );
 
         const matchedTags = p.tags.filter((tag) =>
@@ -321,6 +341,12 @@ async function getGiftRecommendations(userId, options = {}) {
             source: dominantSource,
         });
 
+        const vendorIntelligence = {
+            vendorId: p.vendor.id,
+            vendorName: p.vendor.name,
+            vendorScore,
+        };
+
         return {
             productId: p.id,
             name: p.name,
@@ -329,6 +355,7 @@ async function getGiftRecommendations(userId, options = {}) {
             primaryReason: primaryReason?.message || "Recommended for you",
             source: dominantSource,
             explainability,
+            vendorIntelligence,
         };
     });
 

@@ -97,6 +97,18 @@ model Vendor {
   priceRange String
   location   String
 
+  // Vendor Intelligence
+  rating             Float    @default(0)
+  totalOrders        Int      @default(0)
+  totalClicks        Int      @default(0)
+  conversionRate     Float    @default(0)
+  reliabilityScore   Float    @default(0.5)
+  qualityScore       Float    @default(0.5)
+  trendScore         Float    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   products Product[]
 }
 
@@ -152,4 +164,5 @@ enum RecommendationSource {
   BEHAVIOR
   TRENDING
   SURPRISE
+  VENDOR
 }
