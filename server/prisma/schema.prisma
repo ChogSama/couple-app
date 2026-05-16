@@ -30,6 +30,8 @@ model User {
   userProfileAI UserProfileAI?
 
   recommendationLogs RecommendationLog[]
+
+  experimentAssignments ExperimentAssignment[]
 }
 
 model Relationship {
@@ -165,4 +167,19 @@ enum RecommendationSource {
   TRENDING
   SURPRISE
   VENDOR
+}
+
+model ExperimentAssignment {
+  id        Int      @id @default(autoincrement())
+
+  userId    Int
+  experimentKey String
+  variant   String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, experimentKey])
+  @@index([experimentKey])
 }

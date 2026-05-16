@@ -1,8 +1,10 @@
 const prisma = require("../lib/prisma");
 const redis = require("../lib/redis");
+const { getExperimentConfig } = require("../utils/abTesting");
 const { buildExplainabilityPayload } = require("../utils/explainability");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
 const { calculateVendorScore } = require("../utils/vendorScoring");
+const { assignUserToExperiment } = require("./experimentService");
 
 let trendingCache = null;
 let lastTrendingFetch = 0;
@@ -287,6 +289,17 @@ async function getGiftRecommendations(userId, options = {}) {
         finalProducts = [...products, ...surpriseItems];
     }
 
+    const experiment =
+        await assignUserToExperiment(
+            userId,
+            "recommend-ranking-v1"
+        );
+
+    const weights =
+        getExperimentConfig(
+            experiment.variant
+        );
+
     // Batch scores
     const behaviorMap = await getBehaviorMap(userId);
     const trendingMap = await getTrendingMapCached();
@@ -310,11 +323,11 @@ async function getGiftRecommendations(userId, options = {}) {
             calculateVendorScore(p.vendor);
 
         const score = safe(
-                0.35 * vault +
-                0.25 * ai +
-                0.15 * behavior +
-                0.1 * trend +
-                0.15 * vendorScore
+                weights.vaultWeight * vault +
+                weights.aiWeight * ai +
+                weights.behaviorWeight * behavior +
+                weights.trendWeight * trend +
+                weights.vendorWeight * vendorScore
             );
 
         const matchedTags = p.tags.filter((tag) =>
@@ -356,6 +369,10 @@ async function getGiftRecommendations(userId, options = {}) {
             source: dominantSource,
             explainability,
             vendorIntelligence,
+            experiment: {
+                key: "recommend-ranking-v1",
+                variant: experiment.variant,
+            },
         };
     });
 
