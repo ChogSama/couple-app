@@ -155,9 +155,9 @@ model RecommendationLog {
   user    User    @relation(fields: [userId], references: [id])
   product Product @relation(fields: [productId], references: [id])
 
-  @@index([userId])
   @@index([productId])
   @@index([source])
+  @@index([userId, productId])
 }
 
 enum RecommendationSource {

@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { getGiftRecommendations, getDateIdeas, getRecommendationExplanation } = require("../controllers/recommendController");
-const { trackClick, trackPurchase, getStats } = require("../controllers/analyticsController");
+const { trackClick, trackPurchase, getStats } = require("../controllers/recommendAnalyticsController");
 const authMiddleware = require("../middleware/auth");
 const { strictLimiter, apiLimiter } = require("../middleware/rateLimiter");
 const { validateAdvanced } = require("../middleware/validate");

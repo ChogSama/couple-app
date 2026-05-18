@@ -339,7 +339,8 @@ async function getGiftRecommendations(userId, options = {}) {
             aiScore: ai,
             behaviorScore: behavior,
             trendingScore: trend,
-            matchedTags
+            matchedTags,
+            vendorScore
         });
 
         const primaryReason =

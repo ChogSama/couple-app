@@ -19,7 +19,7 @@ exports.getGiftRecommendations = async (req, res) => {
                 source: r.source,
                 context: {
                     ...context,
-                    explanation: r.reason,
+                    reasons: r.reason,
                     primaryReason: r.primaryReason,
                     explainability: r.explainability,
                 },
