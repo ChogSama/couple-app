@@ -1,6 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 
+require("./events/queues/recommendation.queue");
+require("./events/queues/analytics.queue");
+require("./events/queues/notification.queue");
+
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const coupleRoutes = require("./routes/couple");

@@ -5,6 +5,8 @@ const { buildExplainabilityPayload } = require("../utils/explainability");
 const { getVaultScore, getAIScore, safe } = require("../utils/scoring");
 const { calculateVendorScore } = require("../utils/vendorScoring");
 const { assignUserToExperiment } = require("./experimentService");
+const EVENT_TYPES = require("../events/eventTypes");
+const { emitEvent } = require("../events/eventEmitter");
 
 let trendingCache = null;
 let lastTrendingFetch = 0;
@@ -389,6 +391,15 @@ async function getGiftRecommendations(userId, options = {}) {
         userId,
         options,
         response
+    );
+
+    emitEvent(
+        EVENT_TYPES.RECOMMENDATION_GENERATED,
+        {
+            userId,
+            total: response.results.length,
+            experiment: experiment.variant,
+        }
     );
 
     return response;

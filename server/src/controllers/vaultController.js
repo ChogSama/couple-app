@@ -1,4 +1,6 @@
 const prisma = require("../lib/prisma");
+const EVENT_TYPES = require("../events/eventTypes");
+const { emitEvent } = require("../events/eventEmitter");
 
 // Create vault item
 exports.createVaultItem = async (req, res) => {
@@ -27,6 +29,15 @@ exports.createVaultItem = async (req, res) => {
                 isVisibleToPartner: isVisibleToPartner ?? false,
             },
         });
+
+        emitEvent(
+            EVENT_TYPES.VAULT_ITEM_CREATED,
+            {
+                userId,
+                vaultItemId: item.id,
+                itemType,
+            }
+        );
 
         return res.status(201).json({
             message: "Vault item created",
@@ -142,6 +153,14 @@ exports.updateVaultItem = async (req, res) => {
             },
         });
 
+        emitEvent(
+            EVENT_TYPES.VAULT_ITEM_UPDATED,
+            {
+                userId,
+                vaultItemId: updated.id,
+            }
+        );
+
         return res.status(200).json({
             message: "Updated",
             data: updated,
@@ -179,6 +198,14 @@ exports.deleteVaultItem = async (req, res) => {
         await prisma.secretVault.delete({
             where: { id: existing.id },
         });
+
+        emitEvent(
+            EVENT_TYPES.VAULT_ITEM_DELETED,
+            {
+                userId,
+                vaultItemId: existing.id,
+            }
+        );
 
         return res.status(200).json({
             message: "Deleted",

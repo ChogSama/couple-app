@@ -1,6 +1,8 @@
 const prisma = require("../lib/prisma");
 const redis = require("../lib/redis");
 const { updateFromBehavior } = require("../services/aiProfileService");
+const EVENT_TYPES = require("../events/eventTypes");
+const { emitEvent } = require("../events/eventEmitter");
 
 async function clearRecommendationCache(userId) {
     const keys = await redis.keys(
@@ -55,6 +57,14 @@ exports.trackClick = async (req, res) => {
         await updateFromBehavior(userId, updatedLog.product, 0.1);
         
         await clearRecommendationCache(userId);
+
+        emitEvent(
+            EVENT_TYPES.RECOMMENDATION_CLICKED,
+            {
+                userId,
+                productId,
+            }
+        );
 
         return res.status(200).json({
             message: "Click tracked",
@@ -111,6 +121,14 @@ exports.trackPurchase = async (req, res) => {
         await updateFromBehavior(userId, updatedLog.product, 0.3);
 
         await clearRecommendationCache(userId);
+
+        emitEvent(
+            EVENT_TYPES.RECOMMENDATION_PURCHASED,
+            {
+                userId,
+                productId,
+            }
+        );
 
         return res.status(200).json({
             message: "Purchase tracked",
