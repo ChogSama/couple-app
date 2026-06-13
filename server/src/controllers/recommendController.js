@@ -1,5 +1,5 @@
 const prisma = require("../lib/prisma");
-const { getGiftRecommendations } = require("../services/recommendService");
+const { generateRecommendations, refreshRecommendations } = require("../services/recommendationOrchestrator");
 
 // Get gift recommendations
 exports.getGiftRecommendations = async (req, res) => {
@@ -7,7 +7,7 @@ exports.getGiftRecommendations = async (req, res) => {
         const surprise = req.query.surprise === "true";
 
         const { results, context } =
-            await getGiftRecommendations(req.user.userId, {
+            await generateRecommendations(req.user.userId, {
                 surprise,
             });
         
@@ -107,6 +107,22 @@ exports.getRecommendationExplanation = async (req, res) => {
             explanation:
                 log.context?.explainability || null,
         });
+    } catch (err) {
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message,
+        });
+    }
+};
+
+exports.refreshRecommendations = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const result =
+            await refreshRecommendations(userId);
+
+        return res.status(200).json(result);
     } catch (err) {
         return res.status(500).json({
             message: "Internal server error",

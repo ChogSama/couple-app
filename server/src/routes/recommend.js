@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { getGiftRecommendations, getDateIdeas, getRecommendationExplanation } = require("../controllers/recommendController");
+const { getGiftRecommendations, getDateIdeas, getRecommendationExplanation, refreshRecommendations } = require("../controllers/recommendController");
 const { trackClick, trackPurchase, getStats } = require("../controllers/recommendAnalyticsController");
 const authMiddleware = require("../middleware/auth");
 const { strictLimiter, apiLimiter } = require("../middleware/rateLimiter");
@@ -16,6 +16,13 @@ router.get(
     apiLimiter,
     authMiddleware,
     getRecommendationExplanation
+);
+
+router.post(
+    "/refresh",
+    strictLimiter,
+    authMiddleware,
+    refreshRecommendations
 );
 
 router.post(
