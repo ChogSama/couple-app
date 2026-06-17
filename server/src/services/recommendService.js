@@ -7,6 +7,7 @@ const { calculateVendorScore } = require("../utils/vendorScoring");
 const { assignUserToExperiment } = require("./experimentService");
 const EVENT_TYPES = require("../events/eventTypes");
 const { emitEvent } = require("../events/eventEmitter");
+const { generateEmbedding } = require("./embeddingService");
 
 let trendingCache = null;
 let lastTrendingFetch = 0;
@@ -188,6 +189,21 @@ async function setCachedRecommendations(userId, options, data) {
     });
 }
 
+async function getSimilarProductsByVector(embedding, limit = 10) {
+    const vector = `[${embedding.join(",")}]`;
+
+    return prisma.$queryRawUnsafe(`
+        SELECT
+            p.*,
+            pe.embedding <-> '${vector}'::vector AS distance
+        FROM "ProductEmbedding" pe
+        JOIN "Product" p
+            ON p.id = pe."productId"
+        ORDER BY pe.embedding <-> '${vector}'::vector
+        LIMIT ${Number(limit)}
+    `);
+}
+
 // Get gift recommendations
 async function getGiftRecommendations(userId, options = {}) {
     const { surprise = false, surpriseRatio = 0.2 } = options;
@@ -261,6 +277,30 @@ async function getGiftRecommendations(userId, options = {}) {
             take: 20,
         });
     }
+
+    const queryEmbedding = await generateEmbedding(
+        combined.join(" ")
+    );
+
+    const vectorProducts = await getSimilarProductsByVector(
+        queryEmbedding,
+        20
+    );
+
+    const productIds =
+        vectorProducts.map(p => p.id);
+
+    products =
+        await prisma.product.findMany({
+            where: {
+                id: {
+                    in: productIds,
+                },
+            },
+            include: {
+                vendor: true,
+            },
+        });
 
     // Fallback to popular products if no matches
     if (!products.length) {

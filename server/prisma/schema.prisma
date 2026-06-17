@@ -35,14 +35,14 @@ model User {
 }
 
 model Relationship {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  user1Id   Int
-  user2Id   Int
+  user1Id Int
+  user2Id Int
 
   requestedById Int
 
-  status    RelationshipStatus @default(PENDING)
+  status RelationshipStatus @default(PENDING)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,11 +63,11 @@ enum RelationshipStatus {
 }
 
 model SecretVault {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  ownerId   Int
-  itemType  String
-  content   String
+  ownerId  Int
+  itemType String
+  content  String
 
   isVisibleToPartner Boolean @default(false)
 
@@ -84,8 +84,8 @@ model SecretVault {
 model UserProfileAI {
   userId Int @id
 
-  tags             String[]   // Normalized interests
-  preferenceScore  Json       // { "food": 0.9, "travel": 0.7 }
+  tags            String[] // Normalized interests
+  preferenceScore Json // { "food": 0.9, "travel": 0.7 }
 
   updatedAt DateTime @updatedAt
 
@@ -93,20 +93,20 @@ model UserProfileAI {
 }
 
 model Vendor {
-  id         Int     @id @default(autoincrement())
+  id         Int    @id @default(autoincrement())
   name       String
   category   String
   priceRange String
   location   String
 
   // Vendor Intelligence
-  rating             Float    @default(0)
-  totalOrders        Int      @default(0)
-  totalClicks        Int      @default(0)
-  conversionRate     Float    @default(0)
-  reliabilityScore   Float    @default(0.5)
-  qualityScore       Float    @default(0.5)
-  trendScore         Float    @default(0)
+  rating           Float @default(0)
+  totalOrders      Int   @default(0)
+  totalClicks      Int   @default(0)
+  conversionRate   Float @default(0)
+  reliabilityScore Float @default(0.5)
+  qualityScore     Float @default(0.5)
+  trendScore       Float @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -115,14 +115,14 @@ model Vendor {
 }
 
 model Product {
-  id        Int     @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  vendorId  Int
-  name      String
-  category  String
-  price     Float
+  vendorId Int
+  name     String
+  category String
+  price    Float
 
-  tags      String[]
+  tags String[]
 
   createdAt DateTime @default(now())
 
@@ -131,22 +131,24 @@ model Product {
 
   recommendationLogs RecommendationLog[]
 
+  embedding ProductEmbedding?
+
   @@index([vendorId])
   @@index([category])
   @@index([tags], type: Gin)
 }
 
 model RecommendationLog {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   userId    Int
   productId Int
 
-  score     Float
-  source    RecommendationSource
+  score  Float
+  source RecommendationSource
 
-  context   Json?    // { "reason": "matched_food", "event": "valentine" }
-  isClicked Boolean  @default(false)
+  context     Json? // { "reason": "matched_food", "event": "valentine" }
+  isClicked   Boolean @default(false)
   isPurchased Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -170,11 +172,11 @@ enum RecommendationSource {
 }
 
 model ExperimentAssignment {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  userId    Int
+  userId        Int
   experimentKey String
-  variant   String
+  variant       String
 
   createdAt DateTime @default(now())
 
@@ -182,4 +184,18 @@ model ExperimentAssignment {
 
   @@unique([userId, experimentKey])
   @@index([experimentKey])
+}
+
+model ProductEmbedding {
+  id        Int @id @default(autoincrement())
+  productId Int @unique
+
+  // pgvector field
+  embedding Unsupported("vector(1536)")
+
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
 }
