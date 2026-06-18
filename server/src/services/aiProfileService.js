@@ -1,4 +1,6 @@
 const prisma = require("../lib/prisma");
+const EVENT_TYPES = require("../events/eventTypes");
+const { emitEvent } = require("../events/eventEmitter");
 
 function normalize(tag) {
     return tag.toLowerCase().trim();
@@ -23,6 +25,12 @@ async function updateFromBehavior(userId, product, weight) {
                 ),
             },
         });
+
+        emitEvent(
+            EVENT_TYPES.AI_PROFILE_UPDATED,
+            { userId }
+        );
+
         return;
     }
 
@@ -42,6 +50,11 @@ async function updateFromBehavior(userId, product, weight) {
             preferenceScore: scores,
         },
     });
+
+    emitEvent(
+        EVENT_TYPES.AI_PROFILE_UPDATED,
+        { userId }
+    );
 }
 
 module.exports = { updateFromBehavior };

@@ -4,6 +4,7 @@ const cors = require("cors");
 require("./events/queues/recommendation.queue");
 require("./events/queues/analytics.queue");
 require("./events/queues/notification.queue");
+require("./events/queues/feedback.queue");
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");

@@ -169,6 +169,7 @@ enum RecommendationSource {
   TRENDING
   SURPRISE
   VENDOR
+  VECTOR
 }
 
 model ExperimentAssignment {

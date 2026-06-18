@@ -25,6 +25,7 @@ function buildExplanation({
     trendingScore,
     matchedTags,
     vendorScore,
+    vectorScore,
 }) {
     const reasons = [];
 
@@ -75,6 +76,14 @@ function buildExplanation({
             type: "VENDOR",
             message: "Trusted high-quality vendor",
             score: Number(vendorScore.toFixed(2)),
+        });
+    }
+
+    if (vectorScore > 0) {
+        reasons.push({
+            type: "VECTOR",
+            message: "Semantic similarity match",
+            score: Number(vectorScore.toFixed(2)),
         });
     }
 
@@ -364,12 +373,18 @@ async function getGiftRecommendations(userId, options = {}) {
         const vendorScore =
             calculateVendorScore(p.vendor);
 
+        const vectorScore =
+            p.distance
+                ? Math.max(0, 1 - p.distance)
+                : 0;
+
         const score = safe(
                 weights.vaultWeight * vault +
                 weights.aiWeight * ai +
                 weights.behaviorWeight * behavior +
                 weights.trendWeight * trend +
-                weights.vendorWeight * vendorScore
+                weights.vendorWeight * vendorScore +
+                weights.vectorWeight * vectorScore
             );
 
         const matchedTags = p.tags.filter((tag) =>
@@ -382,7 +397,8 @@ async function getGiftRecommendations(userId, options = {}) {
             behaviorScore: behavior,
             trendingScore: trend,
             matchedTags,
-            vendorScore
+            vendorScore,
+            vectorScore
         });
 
         const primaryReason =

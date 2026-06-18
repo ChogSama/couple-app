@@ -1,6 +1,6 @@
 const prisma = require("../lib/prisma");
 const redis = require("../lib/redis");
-const { updateFromBehavior } = require("../services/aiProfileService");
+const { processFeedback } = require("../services/feedbackService");
 const EVENT_TYPES = require("../events/eventTypes");
 const { emitEvent } = require("../events/eventEmitter");
 
@@ -54,9 +54,11 @@ exports.trackClick = async (req, res) => {
         });
 
         // Auto update AI profile based on click behavior
-        await updateFromBehavior(userId, updatedLog.product, 0.1);
-        
-        await clearRecommendationCache(userId);
+        await processFeedback({
+            userId,
+            product: updatedLog.product,
+            feedbackType: "CLICK",
+        });
 
         emitEvent(
             EVENT_TYPES.RECOMMENDATION_CLICKED,
@@ -118,9 +120,11 @@ exports.trackPurchase = async (req, res) => {
         });
 
         // Auto update AI profile based on purchase behavior
-        await updateFromBehavior(userId, updatedLog.product, 0.3);
-
-        await clearRecommendationCache(userId);
+        await processFeedback({
+            userId,
+            product: updatedLog.product,
+            feedbackType: "PURCHASE",
+        });
 
         emitEvent(
             EVENT_TYPES.RECOMMENDATION_PURCHASED,
